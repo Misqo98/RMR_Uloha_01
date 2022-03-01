@@ -61,11 +61,13 @@ LIBS += -lWinmm
 
 
 SOURCES += main.cpp\
+    DataSender.cpp \
         mainwindow.cpp \
     rplidar.cpp \
     CKobuki.cpp
 
 HEADERS  += mainwindow.h \
+    DataSender.h \
     rplidar.h \
     CKobuki.h
 

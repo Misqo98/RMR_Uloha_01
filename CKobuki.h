@@ -142,8 +142,9 @@ public:
     std::vector<unsigned char> setRotationSpeed(double radpersec);
     std::vector<unsigned char> setArcSpeed(int mmpersec,int radius);
     std::vector<unsigned char> setSound(int noteinHz, int duration);
-
     std::vector<unsigned char> setDefaultPID();
+    double getTickToMeter();
+    double getB();
 
     int fillData(TKobukiData &output,unsigned char *message)
     {

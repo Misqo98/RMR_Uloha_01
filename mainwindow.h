@@ -1,5 +1,8 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
+#define ENC_POSITIVE_TRESHOLD 60000
+#define ENC_NEGATIVE_TRESHOLD -60000
+#define ENC_MAX_VAL 65535
 
 #include <QMainWindow>
 #include <QTimer>
@@ -14,6 +17,7 @@
 #include<stdlib.h>
 #include<vector>
 #include "ckobuki.h"
+#include "DataSender.h"
 #include "rplidar.h"
 /*#include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
@@ -27,6 +31,13 @@ namespace Ui {
 class MainWindow;
 }
 
+typedef struct{
+    double x;
+    double y;
+    double fi;
+    double dist;
+}Coordinates;
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -37,6 +48,7 @@ public:
 
     int actIndex;
     //    cv::Mat frame[3];
+
 
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
@@ -71,6 +83,19 @@ public:
     int rob_s,  rob_recv_len;
     unsigned int rob_slen;
 
+    void localisation();
+    double euclideanDistance(double x1, double y1, double x2, double y2);
+    double directionAngle(double x1, double y1, double x2, double y2);
+
+private:
+    double actualEncLeft, actualEncRight, actualFi = 0.0;
+    double newFi, xPosition, yPosition, lRight, lLeft = 0.0;
+    double x, y = 0.0;
+    DataSender dataSend;
+    Coordinates targetPosition;
+    Coordinates actualPosition;
+
+
 private slots:
     void on_pushButton_9_clicked();
 
@@ -101,10 +126,11 @@ private:
 
 
 
+
 public slots:
-     void setUiValues(double robotX,double robotY,double robotFi);
+     void setUiValues(DataSender dataSend);
 signals:
-     void uiValuesChanged(double newrobotX,double newrobotY,double newrobotFi); ///toto nema telo
+     void uiValuesChanged(DataSender dataSend); ///toto nema telo
 
 
 };

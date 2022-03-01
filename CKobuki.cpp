@@ -64,8 +64,15 @@ void set_blocking2 (int fd, int should_block)
         printf ("error %d setting term attributes", errno);*/
 }
 
-
-
+//_____________Getters_____________
+//Geter for private atribute tickToMeter
+double CKobuki::getTickToMeter(){
+    return tickToMeter;
+}
+//Geter for private atribute b
+double CKobuki::getB(){
+    return b;
+}
 
 
 int CKobuki::checkChecksum(unsigned char * data)

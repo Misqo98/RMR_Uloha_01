@@ -75,22 +75,26 @@ void MainWindow::paintEvent(QPaintEvent *event)
     }
 }
 
-void  MainWindow::setUiValues(double robotX,double robotY,double robotFi)
+void  MainWindow::setUiValues(DataSender dataSend)
 {
-     ui->lineEdit_2->setText(QString::number(robotX));
-     ui->lineEdit_3->setText(QString::number(robotY));
-     ui->lineEdit_4->setText(QString::number(robotFi));
+     ui->lineEdit_2->setText(QString::number(dataSend.x));
+     ui->lineEdit_3->setText(QString::number(dataSend.y));
+     ui->lineEdit_4->setText(QString::number(dataSend.fi));
 }
 
 
 void MainWindow::processThisRobot()
 {
-
+      localisation();
 
 
     if(datacounter%5)
     {
-        emit uiValuesChanged(robotdata.EncoderLeft,11,12);
+        dataSend.x = x;
+        dataSend.y = y;
+        dataSend.fi = newFi;
+
+        emit uiValuesChanged(dataSend);
     }
     datacounter++;
 
@@ -108,6 +112,9 @@ void MainWindow::processThisLidar(LaserMeasurement &laserData)
 
 }
 
+
+
+
 void MainWindow::on_pushButton_9_clicked() //start button
 {
 
@@ -116,7 +123,7 @@ void MainWindow::on_pushButton_9_clicked() //start button
     robotthreadHandle=CreateThread(NULL,0, robotUDPVlakno, (void *)this,0,&robotthreadID);
     /*  laserthreadID=pthread_create(&laserthreadHandle,NULL,&laserUDPVlakno,(void *)this);
       robotthreadID=pthread_create(&robotthreadHandle,NULL,&robotUDPVlakno,(void *)this);*/
-    connect(this,SIGNAL(uiValuesChanged(double,double,double)),this,SLOT(setUiValues(double,double,double)));
+    connect(this,SIGNAL(uiValuesChanged(DataSender)),this,SLOT(setUiValues(DataSender)));
 
 }
 
@@ -222,6 +229,55 @@ void MainWindow::laserprocess()
 
     }
 }
+double MainWindow::euclideanDistance(double x1, double y1, double x2, double y2){
+   return (double)sqrt(pow(x2-x1,2)+pow(y2-y1,2));
+}
+double MainWindow::directionAngle(double x1, double y1, double x2, double y2){
+    return atan2(x2-x1,y2-y1);
+}
+void MainWindow::localisation(){
+    //real lenght in meters
+
+    double newEncLeft = robotdata.EncoderLeft;
+    double newEncRight = robotdata.EncoderRight;
+    double diameter = robot.getB();
+    double tickToMeter = robot.getTickToMeter();
+
+    if(actualEncLeft - newEncLeft > ENC_POSITIVE_TRESHOLD){
+      lLeft = tickToMeter* (newEncLeft - actualEncLeft + ENC_MAX_VAL);
+    }else if (actualEncLeft - newEncLeft < ENC_NEGATIVE_TRESHOLD){
+        lLeft = tickToMeter* (newEncLeft - actualEncLeft - ENC_MAX_VAL);
+    }else
+        lLeft = tickToMeter* (newEncLeft - actualEncLeft);
+
+
+    if(actualEncRight - newEncRight > ENC_POSITIVE_TRESHOLD){
+      lRight = tickToMeter* (newEncRight - actualEncRight + ENC_MAX_VAL);
+    }else if (actualEncRight - newEncRight < ENC_NEGATIVE_TRESHOLD){
+        lRight = tickToMeter* (newEncRight - actualEncRight - ENC_MAX_VAL);
+    }else
+        lRight = tickToMeter * (newEncRight - actualEncRight);
+
+
+    double dAlpha = (lRight - lLeft)/diameter;
+    newFi = actualFi + dAlpha;
+    newFi = fmod(newFi, (2*PI));
+
+    if(lRight == lLeft){
+
+        x = x + lRight*cos(actualFi);
+        y = y + lRight*sin(actualFi);
+    }else{
+        x = x + ((diameter*(lRight + lLeft)/(2.0*(lRight-lLeft)))*(sin(newFi)-sin(actualFi)));
+        y = y - ((diameter*(lRight + lLeft)/(2.0*(lRight-lLeft)))*(cos(newFi)-cos(actualFi)));
+    }
+
+
+
+    actualFi = newFi;
+
+}
+
 
 
 void MainWindow::robotprocess()
@@ -280,7 +336,10 @@ void MainWindow::robotprocess()
         //struct timespec t;
         //      clock_gettime(CLOCK_REALTIME,&t);
 
-        int returnval=robot.fillData(robotdata,(unsigned char*)buff);
+        actualEncLeft = robotdata.EncoderLeft;
+        actualEncRight = robotdata.EncoderRight;
+
+        int returnval=robot.fillData(robotdata,(unsigned char*)buff);//ziskame data
         if(returnval==0)
         {
             processThisRobot();
