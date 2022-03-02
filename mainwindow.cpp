@@ -240,7 +240,7 @@ double MainWindow::euclideanDistance(double x1, double y1, double x2, double y2)
 double MainWindow::directionAngle(double x1, double y1, double x2, double y2){
     // Funkcia atan vracia hodnoty v rozsahu 0-pi
     // Prepocitame hodnoty na rozsah 0-2pi
-    double result = atan2(x2-x1,y2-y1);
+    double result = atan2(y2-y1, x2-x1);
     // Vyskelok je v radianoch
     return (result > 0 ? result : (2*PI + result));
     //return result;
@@ -266,11 +266,14 @@ void MainWindow::positionning(){
 
     if (positioningState.start)
     {
-        if (abs(targetPosition.fi-actualPosition.fi) > PI/4 ) {
+        if (abs(targetPosition.fi-fiAbs) > PI/4 ) {
             positioningState.rotation =1;
             positioningState.circularMovement=0;
+            cout<< "Target fi:  " <<targetPosition.fi<< "Actual fi:  " <<fiAbs<<endl;
         }
-        else {positioningState.rotation=0;positioningState.circularMovement=1;}
+        else{
+            positioningState.rotation=0;positioningState.circularMovement=1;
+        }
 
         if (targetPosition.dist<0.05) {positioningState.start=0; MainWindow::on_pushButton_4_clicked(); positioningState.acceleration=1; ramp=0; }
     }
@@ -278,7 +281,7 @@ void MainWindow::positionning(){
     if(positioningState.start && positioningState.rotation)
     {
 
-        if (radToDeg(targetPosition.fi-actualPosition.fi) > 0 ){
+        if (radToDeg(targetPosition.fi-fiAbs) > 0 ){
             MainWindow::on_pushButton_6_clicked();// vlavo
         }
         else{
@@ -292,7 +295,7 @@ void MainWindow::positionning(){
 
          double Kp=6,Kr=320;
          double T = Kp*targetPosition.dist*100;
-         double R = Kr/(targetPosition.fi-actualPosition.fi);
+         double R = Kr/(targetPosition.fi-fiAbs);
          //if (firsttime){Rampa=Rampa+10; T=Rampa; if(R==250) firsttime=0;}
          if (T>700) T=700;
          if (positioningState.acceleration){T=T*ramp; }
