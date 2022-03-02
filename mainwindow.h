@@ -38,6 +38,13 @@ typedef struct{
     double dist;
 }Coordinates;
 
+typedef struct{
+    bool start = 0;
+    bool circularMovement = 0;
+    bool rotation = 0;
+    bool acceleration = 1;
+}PositioningState;
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -86,11 +93,17 @@ public:
     void localisation();
     double euclideanDistance(double x1, double y1, double x2, double y2);
     double directionAngle(double x1, double y1, double x2, double y2);
+    double radToDeg(double radians);
+    double degToRad(double degree);
+    void positionning();
 
 private:
     double actualEncLeft, actualEncRight, actualFi = 0.0;
     double newFi, xPosition, yPosition, lRight, lLeft = 0.0;
     double x, y = 0.0;
+    double fiAbs = 0.0;
+    double ramp = 0.0;
+    double lastDesiredAngle = 0;
     DataSender dataSend;
     Coordinates targetPosition;
     Coordinates actualPosition;
@@ -123,6 +136,7 @@ private:
      TKobukiData robotdata;
      int datacounter;
      QTimer *timer;
+     PositioningState positioningState;
 
 
 

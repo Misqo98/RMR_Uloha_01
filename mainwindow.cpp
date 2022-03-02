@@ -86,13 +86,18 @@ void  MainWindow::setUiValues(DataSender dataSend)
 void MainWindow::processThisRobot()
 {
       localisation();
+      targetPosition.x = 0;
+      targetPosition.y = 1;
+      positioningState.start = 1;
+      positionning();
+      lastDesiredAngle = targetPosition.fi;
 
 
     if(datacounter%5)
     {
-        dataSend.x = x;
-        dataSend.y = y;
-        dataSend.fi = newFi;
+        dataSend.x = actualPosition.x;
+        dataSend.y = actualPosition.y;
+        dataSend.fi = actualPosition.fi;
 
         emit uiValuesChanged(dataSend);
     }
@@ -233,10 +238,80 @@ double MainWindow::euclideanDistance(double x1, double y1, double x2, double y2)
    return (double)sqrt(pow(x2-x1,2)+pow(y2-y1,2));
 }
 double MainWindow::directionAngle(double x1, double y1, double x2, double y2){
-    return atan2(x2-x1,y2-y1);
+    // Funkcia atan vracia hodnoty v rozsahu 0-pi
+    // Prepocitame hodnoty na rozsah 0-2pi
+    double result = atan2(x2-x1,y2-y1);
+    // Vyskelok je v radianoch
+    return (result > 0 ? result : (2*PI + result));
+    //return result;
 }
+
+double MainWindow::radToDeg(double radians){
+   return radians * 180/PI;
+}
+
+double MainWindow::degToRad(double degree){
+   return degree * PI/180;
+}
+
+void MainWindow::positionning(){
+    targetPosition.fi = directionAngle(actualPosition.x, actualPosition.y, targetPosition.x, targetPosition.y);
+    targetPosition.dist = euclideanDistance(actualPosition.x, actualPosition.y, targetPosition.x, targetPosition.y);
+    /*
+    if (lastDesiredAngle< degToRad(-140) && targetPosition.fi > degToRad(140))
+        targetPosition.fi=targetPosition.fi-(2*PI);
+    if (lastDesiredAngle > degToRad(140) && targetPosition.fi < degToRad(-140))
+        targetPosition.fi=(2*PI)-targetPosition.fi;
+    */
+
+    if (positioningState.start)
+    {
+        if (abs(targetPosition.fi-actualPosition.fi) > PI/4 ) {
+            positioningState.rotation =1;
+            positioningState.circularMovement=0;
+        }
+        else {positioningState.rotation=0;positioningState.circularMovement=1;}
+
+        if (targetPosition.dist<0.05) {positioningState.start=0; MainWindow::on_pushButton_4_clicked(); positioningState.acceleration=1; ramp=0; }
+    }
+
+    if(positioningState.start && positioningState.rotation)
+    {
+
+        if (radToDeg(targetPosition.fi-actualPosition.fi) > 0 ){
+            MainWindow::on_pushButton_6_clicked();// vlavo
+        }
+        else{
+            MainWindow::on_pushButton_5_clicked();// vpravo
+        }
+
+    }
+
+    if(positioningState.start && positioningState.circularMovement)
+     {
+
+         double Kp=6,Kr=320;
+         double T = Kp*targetPosition.dist*100;
+         double R = Kr/(targetPosition.fi-actualPosition.fi);
+         //if (firsttime){Rampa=Rampa+10; T=Rampa; if(R==250) firsttime=0;}
+         if (T>700) T=700;
+         if (positioningState.acceleration){T=T*ramp; }
+         if (isinf(R)) R=32000;
+
+
+         std::vector<unsigned char> mess=robot.setArcSpeed(T,R);
+         if (sendto(rob_s, (char*)mess.data(), sizeof(char)*mess.size(), 0, (struct sockaddr*) &rob_si_posli, rob_slen) == -1)
+         {
+
+         }
+         if (ramp>=1.0) positioningState.acceleration=0;
+         else ramp=ramp+0.01;
+
+     }
+
+}
+
 void MainWindow::localisation(){
-    //real lenght in meters
 
     double newEncLeft = robotdata.EncoderLeft;
     double newEncRight = robotdata.EncoderRight;
@@ -250,7 +325,6 @@ void MainWindow::localisation(){
     }else
         lLeft = tickToMeter* (newEncLeft - actualEncLeft);
 
-
     if(actualEncRight - newEncRight > ENC_POSITIVE_TRESHOLD){
       lRight = tickToMeter* (newEncRight - actualEncRight + ENC_MAX_VAL);
     }else if (actualEncRight - newEncRight < ENC_NEGATIVE_TRESHOLD){
@@ -258,21 +332,20 @@ void MainWindow::localisation(){
     }else
         lRight = tickToMeter * (newEncRight - actualEncRight);
 
-
-    double dAlpha = (lRight - lLeft)/diameter;
+    double dAlpha = (lRight - lLeft)*(1.0/diameter);
     newFi = actualFi + dAlpha;
     newFi = fmod(newFi, (2*PI));
-
+    if(newFi < 0) fiAbs = (2*PI) + newFi;
+    else fiAbs = newFi;
+    actualPosition.fi = newFi;
     if(lRight == lLeft){
 
-        x = x + lRight*cos(actualFi);
-        y = y + lRight*sin(actualFi);
+        actualPosition.x = actualPosition.x + lRight*cos(actualFi);
+        actualPosition.y = actualPosition.y + lRight*sin(actualFi);
     }else{
-        x = x + ((diameter*(lRight + lLeft)/(2.0*(lRight-lLeft)))*(sin(newFi)-sin(actualFi)));
-        y = y - ((diameter*(lRight + lLeft)/(2.0*(lRight-lLeft)))*(cos(newFi)-cos(actualFi)));
+        actualPosition.x = actualPosition.x + ((diameter*(lRight + lLeft)/(2.0*(lRight-lLeft)))*(sin(newFi)-sin(actualFi)));
+        actualPosition.y = actualPosition.y - ((diameter*(lRight + lLeft)/(2.0*(lRight-lLeft)))*(cos(newFi)-cos(actualFi)));
     }
-
-
 
     actualFi = newFi;
 
