@@ -32,10 +32,10 @@ class MainWindow;
 }
 
 typedef struct{
-    double x;
-    double y;
-    double fi;
-    double dist;
+    double x =0.0;
+    double y=0.0;
+    double fi=0.0;
+    double dist=0.0;
 }Coordinates;
 
 typedef struct{
@@ -96,6 +96,7 @@ public:
     double radToDeg(double radians);
     double degToRad(double degree);
     void positionning();
+    bool init = true;
 
 private:
     double actualEncLeft, actualEncRight, actualFi = 0.0;

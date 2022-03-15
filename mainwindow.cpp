@@ -88,7 +88,7 @@ void MainWindow::processThisRobot()
       localisation();
 
       positionning();
-      lastDesiredAngle = targetPosition.fi;
+      //lastDesiredAngle = targetPosition.fi;
 
 
     if(datacounter%5)
@@ -262,11 +262,14 @@ void MainWindow::positionning(){
 
     if (positioningState.start)
     {
-        if (abs(targetPosition.fi-actualPosition.fi) > PI/4 ) {
+
+
+        if (abs(targetPosition.fi - actualPosition.fi) > PI/4 ) {
             positioningState.rotation =1;
             positioningState.circularMovement=0;
             //printf("abs target(%f) - actual(%f) = %f\n", targetPosition.fi, fiAbs, abs(targetPosition.fi-actualPosition.fi));
             //printf("\n x target = %f\n", targetPosition.x);
+           // printf("Diff angle = %f",angleDiff);
         }
         else{
             positioningState.rotation=0;
@@ -283,42 +286,23 @@ void MainWindow::positionning(){
 
     if(positioningState.start && positioningState.rotation)
     {
+        double angleDiff = 0;
+           angleDiff = targetPosition.fi-actualPosition.fi;
+           if(angleDiff < 0){
+               angleDiff = 2*PI + angleDiff;
+           }else if (angleDiff >0){
+               angleDiff=2*PI - angleDiff;
+           }
 
-        if(actualPosition.fi > 0 && targetPosition.fi<0){
-            double opositeAngle;
-            opositeAngle = actualPosition.fi - PI;
-            if(targetPosition.fi < opositeAngle && targetPosition.fi > -PI){
-                MainWindow::on_pushButton_6_clicked();// vlavo
-            }else{
-                MainWindow::on_pushButton_5_clicked();// vpravo
-            }
-        }else if(actualPosition.fi >= 0 && targetPosition.fi>0){
-            if(targetPosition.fi > 0 && targetPosition.fi< actualPosition.fi){
-                MainWindow::on_pushButton_5_clicked();// vpravo
-            }else{
-                MainWindow::on_pushButton_6_clicked();// vlavo
-            }
+           if (angleDiff > 0 ){
 
-        }else if(actualPosition.fi < 0 && targetPosition.fi<0){
-            if(targetPosition.fi < 0 && targetPosition.fi > actualPosition.fi){
-                MainWindow::on_pushButton_6_clicked();// vlavo
-            }else{
-                MainWindow::on_pushButton_5_clicked();// vpravo
-            }
-        }
-        else if(actualPosition.fi < 0 && targetPosition.fi>0){
-            double opositeAngle;
-            opositeAngle = actualPosition.fi + PI;
-            if(targetPosition.fi > opositeAngle && targetPosition.fi < PI){
-                MainWindow::on_pushButton_5_clicked();// vpravo
-
-            }else{
-                MainWindow::on_pushButton_6_clicked();// vlavo
-            }
-        }
-
-
+               MainWindow::on_pushButton_6_clicked();// vlavo
+           }
+           else{
+               MainWindow::on_pushButton_5_clicked();// vpravo
+           }
     }
+
 
 
     if(positioningState.start && positioningState.circularMovement)
@@ -332,8 +316,9 @@ void MainWindow::positionning(){
             R = Kr/(targetPosition.fi-actualPosition.fi);
          }
 
+         if (T>600) T=600;
          if (positioningState.acceleration){T=T*ramp; }
-         //if (isinf(R)) R=32000;
+
         std::vector<unsigned char> mess=robot.setArcSpeed(T,R);
          if (sendto(rob_s, (char*)mess.data(), sizeof(char)*mess.size(), 0, (struct sockaddr*) &rob_si_posli, rob_slen) == -1)
             {
@@ -354,6 +339,11 @@ void MainWindow::localisation(){
     double newEncRight = robotdata.EncoderRight;
     double diameter = robot.getB();
     double tickToMeter = robot.getTickToMeter();
+
+
+    /*if(init){
+
+    }*/
 
     if(actualEncLeft - newEncLeft > ENC_POSITIVE_TRESHOLD){
       lLeft = tickToMeter* (newEncLeft - actualEncLeft + ENC_MAX_VAL);
@@ -457,7 +447,18 @@ void MainWindow::robotprocess()
         int returnval=robot.fillData(robotdata,(unsigned char*)buff);//ziskame data
         if(returnval==0)
         {
+            if(actualEncLeft == 0){
+                actualEncLeft = robotdata.EncoderLeft;
+            }
+            if(actualEncRight == 0){
+                actualEncRight = robotdata.EncoderRight;
+            }
+            if(actualFi == 0){
+                actualFi = robotdata.GyroAngle/100.0 * PI/180.0;
+            }
+
             processThisRobot();
+
         }
 
 
