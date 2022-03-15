@@ -239,8 +239,7 @@ double MainWindow::euclideanDistance(double x1, double y1, double x2, double y2)
    return (double)sqrt(pow(x2-x1,2)+pow(y2-y1,2));
 }
 double MainWindow::directionAngle(double x1, double y1, double x2, double y2){
-    // Funkcia atan vracia hodnoty v rozsahu 0-pi
-    // Prepocitame hodnoty na rozsah 0-2pi
+    // Funkcia atan vracia hodnoty v rozsahu -pi-pi
     double result = atan2(y2-y1, x2-x1);
     return result;
 
@@ -259,12 +258,19 @@ void MainWindow::positionning(){
     targetPosition.fi = directionAngle(actualPosition.x, actualPosition.y, targetPosition.x, targetPosition.y);
     targetPosition.dist = euclideanDistance(actualPosition.x, actualPosition.y, targetPosition.x, targetPosition.y);
 
-
+    double angleDiff = 0;
+    angleDiff = targetPosition.fi-actualPosition.fi;
+    printf("Rozdiel: %f, target fi %f, actual fi %f\n", angleDiff,targetPosition.fi,actualPosition.fi);
+    if(angleDiff < -PI){
+        angleDiff = 2*PI + angleDiff;
+    }else if (angleDiff>PI){
+        angleDiff=2*PI - angleDiff;
+    }
+    printf("Scaled Rozdiel: %f \n", angleDiff);
     if (positioningState.start)
     {
 
-
-        if (abs(targetPosition.fi - actualPosition.fi) > PI/4 ) {
+        if (abs(angleDiff) > PI/4 ) {
             positioningState.rotation =1;
             positioningState.circularMovement=0;
             //printf("abs target(%f) - actual(%f) = %f\n", targetPosition.fi, fiAbs, abs(targetPosition.fi-actualPosition.fi));
@@ -286,16 +292,7 @@ void MainWindow::positionning(){
 
     if(positioningState.start && positioningState.rotation)
     {
-        double angleDiff = 0;
-           angleDiff = targetPosition.fi-actualPosition.fi;
-           if(angleDiff < 0){
-               angleDiff = 2*PI + angleDiff;
-           }else if (angleDiff >0){
-               angleDiff=2*PI - angleDiff;
-           }
-
            if (angleDiff > 0 ){
-
                MainWindow::on_pushButton_6_clicked();// vlavo
            }
            else{
@@ -310,10 +307,10 @@ void MainWindow::positionning(){
          double Kp=6,Kr=320;
          double T = Kp*targetPosition.dist*100;
          double R = 0;
-         if(targetPosition.fi-actualPosition.fi == 0){
-             R = 3200;
+         if(angleDiff == 0){
+             R = 320;
          }else{
-            R = Kr/(targetPosition.fi-actualPosition.fi);
+            R = Kr/(angleDiff);
          }
 
          if (T>600) T=600;
