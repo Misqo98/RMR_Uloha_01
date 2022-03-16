@@ -262,9 +262,9 @@ void MainWindow::positionning(){
     angleDiff = targetPosition.fi-actualPosition.fi;
     printf("Rozdiel: %f, target fi %f, actual fi %f\n", angleDiff,targetPosition.fi,actualPosition.fi);
     if(angleDiff < -PI){
-        angleDiff = 2*PI + angleDiff;
+        angleDiff += 2*PI;
     }else if (angleDiff>PI){
-        angleDiff=2*PI - angleDiff;
+        angleDiff-=2*PI;
     }
     printf("Scaled Rozdiel: %f \n", angleDiff);
     if (positioningState.start)
