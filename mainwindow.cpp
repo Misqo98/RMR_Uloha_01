@@ -444,16 +444,18 @@ void MainWindow::robotprocess()
         int returnval=robot.fillData(robotdata,(unsigned char*)buff);//ziskame data
         if(returnval==0)
         {
-            if(actualEncLeft == 0){
-                actualEncLeft = robotdata.EncoderLeft;
+            if(init){
+                if(actualEncLeft == 0){
+                    actualEncLeft = robotdata.EncoderLeft;
+                }
+                if(actualEncRight == 0){
+                    actualEncRight = robotdata.EncoderRight;
+                }
+                if(actualFi == 0){
+                    actualFi = robotdata.GyroAngle/100.0 * PI/180.0;
+                }
+                init = false;
             }
-            if(actualEncRight == 0){
-                actualEncRight = robotdata.EncoderRight;
-            }
-            if(actualFi == 0){
-                actualFi = robotdata.GyroAngle/100.0 * PI/180.0;
-            }
-
             processThisRobot();
 
         }
