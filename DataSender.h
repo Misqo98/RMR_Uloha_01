@@ -15,6 +15,8 @@ public:
     double x;
     double y;
     double fi;
+    double angleErr;
+    double distErr;
 
 };
 Q_DECLARE_METATYPE(DataSender)

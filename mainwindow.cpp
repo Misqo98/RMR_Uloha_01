@@ -2,6 +2,7 @@
 #include "ui_mainwindow.h"
 #include <QPainter>
 #include <math.h>
+#include <fstream>
 
 
 
@@ -19,6 +20,11 @@ MainWindow::MainWindow(QWidget *parent) :
  //   connect(timer, SIGNAL(timeout()), this, SLOT(getNewFrame()));
     actIndex=-1;
     useCamera=false;
+    for (int i = 0; i < 120; i++){
+      for (int j = 0; j < 120; j++){
+        map.array[i][j] = 0;
+      }
+    }
 
 
 
@@ -80,13 +86,17 @@ void  MainWindow::setUiValues(DataSender dataSend)
      ui->lineEdit_2->setText(QString::number(dataSend.x));
      ui->lineEdit_3->setText(QString::number(dataSend.y));
      ui->lineEdit_4->setText(QString::number(radToDeg(dataSend.fi)));
+     ui->lineEdit_7->setText(QString::number(radToDeg(dataSend.angleErr)));
+     ui->lineEdit_8->setText(QString::number(dataSend.distErr));
 }
 
 
 void MainWindow::processThisRobot()
 {
       localisation();
-
+      if(isMaping && !positioningState.rotation && !isRottating){
+      mapping(actualPosition.x, actualPosition.y, actualPosition.fi);
+      }
       positionning();
       //lastDesiredAngle = targetPosition.fi;
 
@@ -96,6 +106,8 @@ void MainWindow::processThisRobot()
         dataSend.x = actualPosition.x;
         dataSend.y = actualPosition.y;
         dataSend.fi = actualPosition.fi;
+        dataSend.angleErr = angleErr;
+        dataSend.distErr = distErr;
 
         emit uiValuesChanged(dataSend);
     }
@@ -234,6 +246,75 @@ void MainWindow::laserprocess()
     }
 }
 
+void MainWindow::robotArcMove(double translation,double radius) //stop
+{
+    std::vector<unsigned char> mess=robot.setArcSpeed(translation,radius);
+     if (sendto(rob_s, (char*)mess.data(), sizeof(char)*mess.size(), 0, (struct sockaddr*) &rob_si_posli, rob_slen) == -1)
+        {
+
+     }
+}
+
+void MainWindow::robotStop() //stop
+{
+    std::vector<unsigned char> mess=robot.setTranslationSpeed(0);
+    if (sendto(rob_s, (char*)mess.data(), sizeof(char)*mess.size(), 0, (struct sockaddr*) &rob_si_posli, rob_slen) == -1)
+    {
+
+    }
+}
+void MainWindow::robotRotate(double angl)
+{
+
+    std::vector<unsigned char> mess=robot.setRotationSpeed(angl);
+
+    if (sendto(rob_s, (char*)mess.data(), sizeof(char)*mess.size(), 0, (struct sockaddr*) &rob_si_posli, rob_slen) == -1)
+    {
+
+    }
+}
+void MainWindow::writeMapToCsv(int map[120][120]){
+
+    ofstream outfile;
+    outfile.open("D:\\gitHub\\RMR\\RMR_Uloha_01\\robotmap.csv");
+
+    if (outfile.is_open())
+              {
+                  for (int k = 0; k < 120; k++)
+                  {
+                      for (int i = 0; i < 120; i++)
+                      {
+                          outfile << map[0+k][0+i] << ";";
+                      }
+                      outfile << endl;
+                  }
+                  printf("Map save complete");
+      }
+      else cout << "Unable to open file";
+
+        outfile.close();
+}
+
+
+double MainWindow::mapping(double robX , double robY , double robAngle)
+{
+    int Xmap=0,Ymap=0;
+    for(int i=0; i<copyOfLaserData.numberOfScans; i++)
+    {
+        double obstacleAngle=(360-copyOfLaserData.Data[i].scanAngle)*(PI/180);
+        double robAngle2PI = robAngle >= 0 ? robAngle : robAngle + 2*PI;
+
+        if (copyOfLaserData.Data[i].scanDistance > 150 && copyOfLaserData.Data[i].scanDistance < 3000){//mm
+            Xmap=(((robX)*1000 + copyOfLaserData.Data[i].scanDistance * cos(robAngle2PI+obstacleAngle))/100);
+            Ymap=(((robY)*1000 + copyOfLaserData.Data[i].scanDistance * sin(robAngle2PI+obstacleAngle))/100);
+
+            map.array[(int)Xmap+map.midX][(int)Ymap+map.midY]=1;
+        }
+    }
+    return 1.0;
+
+
+}
 
 double MainWindow::euclideanDistance(double x1, double y1, double x2, double y2){
    return (double)sqrt(pow(x2-x1,2)+pow(y2-y1,2));
@@ -254,22 +335,22 @@ double MainWindow::degToRad(double degree){
 }
 
 void MainWindow::positionning(){
-
     targetPosition.fi = directionAngle(actualPosition.x, actualPosition.y, targetPosition.x, targetPosition.y);
     targetPosition.dist = euclideanDistance(actualPosition.x, actualPosition.y, targetPosition.x, targetPosition.y);
 
     double angleDiff = 0;
     angleDiff = targetPosition.fi-actualPosition.fi;
-    printf("Rozdiel: %f, target fi %f, actual fi %f\n", angleDiff,targetPosition.fi,actualPosition.fi);
+    //printf("Rozdiel: %f, target fi %f, actual fi %f\n", angleDiff,targetPosition.fi,actualPosition.fi);
     if(angleDiff < -PI){
         angleDiff += 2*PI;
     }else if (angleDiff>PI){
         angleDiff-=2*PI;
     }
-    printf("Scaled Rozdiel: %f \n", angleDiff);
+    angleErr = angleDiff;
+    distErr = targetPosition.dist;
+    //printf("Scaled Rozdiel: %f \n", angleDiff);
     if (positioningState.start)
     {
-
         if (abs(angleDiff) > PI/4 ) {
             positioningState.rotation =1;
             positioningState.circularMovement=0;
@@ -285,7 +366,7 @@ void MainWindow::positionning(){
         if (targetPosition.dist<0.1) {
             printf("Skoncil som\n");
             positioningState.start=0;
-            MainWindow::on_pushButton_4_clicked();
+            robotStop();
             positioningState.acceleration=1;
             ramp=0; }
     }
@@ -293,34 +374,37 @@ void MainWindow::positionning(){
     if(positioningState.start && positioningState.rotation)
     {
            if (angleDiff > 0 ){
-               MainWindow::on_pushButton_6_clicked();// vlavo
+               robotRotate(PI/2);
            }
            else{
-               MainWindow::on_pushButton_5_clicked();// vpravo
+               robotRotate(-PI/2);
            }
     }
 
-
-
     if(positioningState.start && positioningState.circularMovement)
      {
-         double Kp=6,Kr=320;
-         double T = Kp*targetPosition.dist*100;
-         double R = 0;
+
+         double trans = Kp*targetPosition.dist;
+         double radius = 0;
          if(angleDiff == 0){
-             R = 320;
+             radius = 5000;
          }else{
-            R = Kr/(angleDiff);
+            radius = Kr/(angleDiff);
          }
 
-         if (T>600) T=600;
-         if (positioningState.acceleration){T=T*ramp; }
+         if (trans>400)
+             trans=400;
+         if (positioningState.acceleration)
+             trans=trans*ramp;
 
-        std::vector<unsigned char> mess=robot.setArcSpeed(T,R);
-         if (sendto(rob_s, (char*)mess.data(), sizeof(char)*mess.size(), 0, (struct sockaddr*) &rob_si_posli, rob_slen) == -1)
-            {
-
-         }
+         if (trans<15)
+             trans=15;
+        if(radius < 8){
+            isRottating = true;
+        }else{
+            isRottating = false;
+        }
+         robotArcMove(trans,radius);
          if (ramp>=1.0)
              positioningState.acceleration=0;
          else
@@ -494,5 +578,34 @@ void MainWindow::on_pushButton_11_clicked()
     targetPosition.y = (ui->lineEdit_6->text().toDouble());
 
     positioningState.start = 1; // Zacni polohovat
+}
+
+
+void MainWindow::on_pushButton_10_clicked()
+{
+    writeMapToCsv(map.array);
+}
+
+
+void MainWindow::on_pushButton_8_clicked()
+{
+
+}
+
+
+void MainWindow::on_pushButton_12_clicked()
+{
+    if(isMaping==true)
+    {
+        isMaping=false;
+
+        ui->pushButton_12->setText("Start mapping");
+    }
+    else
+    {
+        isMaping=true;
+
+        ui->pushButton_12->setText("Stop mapping");
+    }
 }
 

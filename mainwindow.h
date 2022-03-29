@@ -15,6 +15,7 @@
 #include<stdio.h>
 #include<string.h>
 #include<stdlib.h>
+#include <fstream>
 #include<vector>
 #include "ckobuki.h"
 #include "DataSender.h"
@@ -37,6 +38,14 @@ typedef struct{
     double fi=0.0;
     double dist=0.0;
 }Coordinates;
+
+typedef struct{
+    int width = 120;
+    int heigh = 120;
+    int midX = width/2;
+    int midY = heigh/2;
+   int array[120][120];
+}robotMap;
 
 typedef struct{
     bool start = 0;
@@ -91,10 +100,15 @@ public:
     unsigned int rob_slen;
 
     void localisation();
+    void writeMapToCsv(int map[120][120]);
+    double mapping(double robX , double robY , double robAngle);
     double euclideanDistance(double x1, double y1, double x2, double y2);
     double directionAngle(double x1, double y1, double x2, double y2);
     double radToDeg(double radians);
     double degToRad(double degree);
+    void robotRotate(double angl);
+    void robotStop();
+    void robotArcMove(double translation,double radius);
     void positionning();
     bool init = true;
 
@@ -104,7 +118,12 @@ private:
     double x, y = 0.0;
     double fiAbs = 0.0;
     double ramp = 0.0;
-    double lastDesiredAngle = 0;
+    bool isMaping = false;
+    bool isRottating = false;
+    double Kp=600,Kr=103;
+    double angleErr, distErr = 0.0;
+    robotMap map;
+
     DataSender dataSend;
     Coordinates targetPosition;
     Coordinates actualPosition;
@@ -127,6 +146,12 @@ private slots:
     void getNewFrame();
 
     void on_pushButton_11_clicked();
+
+    void on_pushButton_10_clicked();
+
+    void on_pushButton_8_clicked();
+
+    void on_pushButton_12_clicked();
 
 private:
      JOYINFO joystickInfo;
