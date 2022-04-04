@@ -4,13 +4,13 @@
 #include <math.h>
 #include <fstream>
 
-
-
+//*********************************************************
+//********************** Constructor **********************
+//*********************************************************
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
 {
-
     //tu je napevno nastavena ip. treba zmenit na to co ste si zadali do text boxu alebo nejaku inu pevnu. co bude spravna
     ipaddress="127.0.0.1";
     //cap.open("http://192.168.1.11:8000/stream.mjpg");
@@ -25,12 +25,7 @@ MainWindow::MainWindow(QWidget *parent) :
         map.array[i][j] = 0;
       }
     }
-
-
-
     datacounter=0;
-
-
 }
 
 MainWindow::~MainWindow()
@@ -50,27 +45,13 @@ void MainWindow::paintEvent(QPaintEvent *event)
     rect= ui->frame->geometry();
     rect.translate(0,15);
     painter.drawRect(rect);
-
-  /*  if(useCamera==true)
-    {
-        std::cout<<actIndex<<std::endl;
-        QImage image = QImage((uchar*)frame[actIndex].data, frame[actIndex].cols, frame[actIndex].rows, frame[actIndex].step, QImage::Format_RGB888  );
-        painter.drawImage(rect,image.rgbSwapped());
-    }
-    else*/
     {
         if(updateLaserPicture==1)
         {
             updateLaserPicture=0;
-
             painter.setPen(pero);
-            //teraz tu kreslime random udaje... vykreslite to co treba... t.j. data z lidaru
-         //   std::cout<<copyOfLaserData.numberOfScans<<std::endl;
             for(int k=0;k<copyOfLaserData.numberOfScans/*360*/;k++)
             {
-                /*  int dist=rand()%500;
-            int xp=rect.width()-(rect.width()/2+dist*2*sin((360.0-k)*3.14159/180.0))+rect.topLeft().x();
-            int yp=rect.height()-(rect.height()/2+dist*2*cos((360.0-k)*3.14159/180.0))+rect.topLeft().y();*/
                 int dist=copyOfLaserData.Data[k].scanDistance/20;
                 int xp=rect.width()-(rect.width()/2+dist*2*sin((360.0-copyOfLaserData.Data[k].scanAngle)*3.14159/180.0))+rect.topLeft().x();
                 int yp=rect.height()-(rect.height()/2+dist*2*cos((360.0-copyOfLaserData.Data[k].scanAngle)*3.14159/180.0))+rect.topLeft().y();
@@ -81,16 +62,10 @@ void MainWindow::paintEvent(QPaintEvent *event)
     }
 }
 
-void  MainWindow::setUiValues(DataSender dataSend)
-{
-     ui->lineEdit_2->setText(QString::number(dataSend.x));
-     ui->lineEdit_3->setText(QString::number(dataSend.y));
-     ui->lineEdit_4->setText(QString::number(radToDeg(dataSend.fi)));
-     ui->lineEdit_7->setText(QString::number(radToDeg(dataSend.angleErr)));
-     ui->lineEdit_8->setText(QString::number(dataSend.distErr));
-}
 
-
+//********************************************************
+//********************** Processing **********************
+//********************************************************
 void MainWindow::processThisRobot()
 {
       localisation();
@@ -98,8 +73,7 @@ void MainWindow::processThisRobot()
       mapping(actualPosition.x, actualPosition.y, actualPosition.fi);
       }
       positionning();
-      //lastDesiredAngle = targetPosition.fi;
-
+      mapNavigation();
 
     if(datacounter%5)
     {
@@ -112,7 +86,6 @@ void MainWindow::processThisRobot()
         emit uiValuesChanged(dataSend);
     }
     datacounter++;
-
 }
 
 void MainWindow::processThisLidar(LaserMeasurement &laserData)
@@ -122,13 +95,15 @@ void MainWindow::processThisLidar(LaserMeasurement &laserData)
     // ale nic vypoctovo narocne - to iste vlakno ktore cita data z lidaru
     updateLaserPicture=1;
     update();//tento prikaz prinuti prekreslit obrazovku.. zavola sa paintEvent funkcia
-
-
-
 }
-
-
-
+void  MainWindow::setUiValues(DataSender dataSend)
+{
+     ui->lineEdit_2->setText(QString::number(dataSend.x));
+     ui->lineEdit_3->setText(QString::number(dataSend.y));
+     ui->lineEdit_4->setText(QString::number(radToDeg(dataSend.fi)));
+     ui->lineEdit_7->setText(QString::number(radToDeg(dataSend.angleErr)));
+     ui->lineEdit_8->setText(QString::number(dataSend.distErr));
+}
 
 void MainWindow::on_pushButton_9_clicked() //start button
 {
@@ -196,8 +171,6 @@ void MainWindow::laserprocess()
     WSADATA wsaData = {0};
     int iResult = 0;
 
-
-
     // Initialize Winsock
     iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
     las_slen = sizeof(las_si_other);
@@ -229,23 +202,247 @@ void MainWindow::laserprocess()
     {
         if ((las_recv_len = recvfrom(las_s, (char*)&measure.Data, sizeof(LaserData)*1000, 0, (struct sockaddr *) &las_si_other, (int*)&las_slen)) == -1)
         {
-
             continue;
         }
         measure.numberOfScans=las_recv_len/sizeof(LaserData);
-        //tu mame data..zavolame si funkciu
-
-        //     memcpy(&sens,buff,sizeof(sens));
-
-
         processThisLidar(measure);
-
-
-
-
     }
 }
 
+//****************************************************************
+//********************** Map coordination ***********************
+//***************************************************************
+point MainWindow::worldCoord2map(double xm, double ym){
+    point result;
+    int ofset = 40/2;
+
+    result.x = (int)(xm*1000.0/300.0);
+    result.y = (int)(ym*1000.0/300.0);
+
+    result.x += ofset;
+    result.y += ofset;
+    return result;
+}
+
+/*worldPoint MainWindow::mapCoord2World( int xm, int ym){
+    int ofset = ofset = 30/2;;
+    worldPoint tmpPoint;
+    tmpPoint.x = ((double)(xm-ofset))*250.0/1000.0;
+    tmpPoint.y = ((double)(ym-ofset))*250.0/1000.0;
+ //227 237
+    //cout << xn << "     " << yn << endl;
+    return tmpPoint;
+}*/
+//****************************************************************
+//********************** Map navigation **************************
+//****************************************************************
+void MainWindow::mapNavigation(){
+    robotMap map = readMapToArr("D:\\gitHub\\RMR\\RMR_Uloha_01\\robotmap.csv");
+    robotResizedMap resizedMap = resizeMapFill(map);
+
+    point goal;
+    goal.x = 0;
+    goal.y = 1;
+    printf("Flood %d\n",mapFloodFill(resizedMap, worldCoord2map(actualPosition.x, actualPosition.y), worldCoord2map(goal.x, goal.y)));
+
+}
+
+std::vector<point> MainWindow::findNeighbour(point position, int neighbourX[8], int neighbourY[8], robotResizedMap *map, int foundStart[1]){
+    std::vector<point> result;
+    for(int i = 0; i < 8; i++){
+        int x = position.x + neighbourX[i];
+        int y = position.y + neighbourY[i];
+        if(x >= 0 && x < 40 && y>=0 && y < 40){
+            int value = map->array[x][y];
+            if(value == INT_MAX){
+                map->array[x][y] =position.value + 1;
+                //map->array[x][y] =1000;
+                *foundStart = 1;
+                result.clear();
+                break;
+            }
+            if(value == 0){
+                map->array[x][y] =position.value + 1;
+                point newPoint;
+                newPoint.x = x;
+                newPoint.y = y;
+                newPoint.value = position.value +1;
+                result.push_back(newPoint);
+            }
+        }
+    }
+
+    return result;
+}
+bool MainWindow::mapFloodFill(robotResizedMap map, point start, point goal){
+    int smerX[8] = {-1,-1,-1,0,0,1,1,1};
+    int smerY[8] = {1,0,-1,1,-1,1,0,-1};
+    int startFound = 0;
+        bool result = false;
+    if(map.array[start.x][start.y] != 1 && map.array[goal.x][goal.y] != 1 ){
+        start.value = INT_MAX;
+        goal.value = 2;
+        map.array[start.x][start.y] = start.value;
+         map.array[goal.x][goal.y] = goal.value;
+        std::vector<point> actualPoint;
+        std::vector<point> nextPoint;
+        nextPoint.push_back(goal);
+
+        while(!nextPoint.empty()){
+            actualPoint.clear();
+            actualPoint.insert(actualPoint.end(), nextPoint.begin(), nextPoint.end());
+            nextPoint.clear();
+            while(!actualPoint.empty()){
+               point act =  actualPoint[0];
+               std::vector<point> actualNeighbours = findNeighbour(act, smerX, smerY, &map, &startFound);
+               if(startFound == 1){
+                   nextPoint.clear();
+                   actualPoint.clear();
+                   result = true;
+                   break;
+               }
+               if(actualNeighbours.empty()){
+                   int a = 0;
+               }
+               nextPoint.insert(nextPoint.end(), actualNeighbours.begin(), actualNeighbours.end());
+               actualPoint.erase(actualPoint.begin());
+
+            }
+        }
+        for (int y = 0; y < 40; y++) {
+            for (int x = 0; x < 40; x++)
+                    cout << map.array[x][y] << " ";
+            cout << "\n";
+        }
+    }
+
+    return result;
+}
+//*************************************************************************
+//********************** Map read, write, and resize **********************
+//*************************************************************************
+void MainWindow::writeMapToCsv(int map[120][120]){
+
+    ofstream outfile;
+    outfile.open("D:\\gitHub\\RMR\\RMR_Uloha_01\\robotmap.csv");
+
+    if (outfile.is_open())
+              {
+                  for (int y = 119; y >= 0; y--)
+                  {
+                      for (int x = 0; x < 120; x++)
+                      {
+                          outfile << map[0+x][0+y] << ";";
+                      }
+                      outfile << endl;
+                  }
+                  printf("Map save complete");
+      }
+      else cout << "Unable to open file";
+
+        outfile.close();
+}
+
+robotMap MainWindow::readMapToArr(string path){
+    std::ifstream f;
+    robotMap result;
+    f.open (path);
+    if (! f.is_open()) {
+            std::cerr << "error: file open failed '" << path << "'.\n";
+    }
+
+    std::string line, val;
+    std::vector<std::vector<int>> array;
+    for (int i = 0; i < 120; i++){
+      for (int j = 0; j < 120; j++){
+        result.array[i][j] = 0;
+      }
+    }
+    while (std::getline (f, line)) {
+        std::vector<int> v;
+        std::stringstream s (line);
+        while (getline (s, val, ';'))
+            v.push_back (std::stoi (val));
+        array.push_back (v);
+    }
+    std::reverse(array.begin(), array.end());
+    for (std::size_t y = 0; y < 120; y++) {
+        for (std::size_t x = 0; x < 120; x++)
+            result.array[x][y] = array[y][x];
+            //std::cout << array[y][x] << " ";
+        //std::cout << "\n";
+    }
+
+
+    return result;
+}
+
+robotResizedMap MainWindow::resizeMapFill(robotMap map){
+    robotResizedMap result;
+    for (int i = 0; i < 40; i++){
+      for (int j = 0; j < 40; j++){
+        result.array[i][j] = 0;
+      }
+    }
+
+    for(int y=0; y<map.heigh; y++){
+        for(int x=0; x<map.width; x++){
+            int resultX = x/3;
+            int resultY = y/3;
+            if(result.array[resultX][resultY] ||  map.array[x][y]){
+                result.array[resultX][resultY] = 1;
+            }else{
+                result.array[resultX][resultY] = 0;
+            }
+            //result.array[resultX][resultY] |=  map.array[x][y];
+        }
+    }
+    ofstream outfile;
+    outfile.open("D:\\gitHub\\RMR\\RMR_Uloha_01\\robotmap_resized.csv");
+
+    if (outfile.is_open())
+              {
+                  for (int y = 39; y > 0; y--)
+                  {
+                      for (int x = 0; x < 40; x++)
+                      {
+                          outfile << result.array[0+x][0+y] << ";";
+                      }
+                      outfile << endl;
+                  }
+
+      }
+      else cout << "Unable to open file";
+
+        outfile.close();
+    return result;
+}
+//*****************************************************
+//********************** Mapping **********************
+//*****************************************************
+double MainWindow::mapping(double robX , double robY , double robAngle)
+{
+    int Xmap=0,Ymap=0;
+    for(int i=0; i<copyOfLaserData.numberOfScans; i++)
+    {
+        double obstacleAngle=(360-copyOfLaserData.Data[i].scanAngle)*(PI/180);
+        double robAngle2PI = robAngle >= 0 ? robAngle : robAngle + 2*PI;
+
+        if (copyOfLaserData.Data[i].scanDistance > 150 && copyOfLaserData.Data[i].scanDistance < 3000){//mm
+            Xmap=(((robX)*1000 + copyOfLaserData.Data[i].scanDistance * cos(robAngle2PI+obstacleAngle))/100);
+            Ymap=(((robY)*1000 + copyOfLaserData.Data[i].scanDistance * sin(robAngle2PI+obstacleAngle))/100);
+
+            map.array[(int)Xmap+map.midX][(int)Ymap+map.midY]=1;
+        }
+    }
+    return 1.0;
+
+
+}
+
+//***************************************************************
+//********************** Robot positioning **********************
+//***************************************************************
 void MainWindow::robotArcMove(double translation,double radius) //stop
 {
     std::vector<unsigned char> mess=robot.setArcSpeed(translation,radius);
@@ -273,48 +470,6 @@ void MainWindow::robotRotate(double angl)
 
     }
 }
-void MainWindow::writeMapToCsv(int map[120][120]){
-
-    ofstream outfile;
-    outfile.open("D:\\gitHub\\RMR\\RMR_Uloha_01\\robotmap.csv");
-
-    if (outfile.is_open())
-              {
-                  for (int k = 0; k < 120; k++)
-                  {
-                      for (int i = 0; i < 120; i++)
-                      {
-                          outfile << map[0+k][0+i] << ";";
-                      }
-                      outfile << endl;
-                  }
-                  printf("Map save complete");
-      }
-      else cout << "Unable to open file";
-
-        outfile.close();
-}
-
-
-double MainWindow::mapping(double robX , double robY , double robAngle)
-{
-    int Xmap=0,Ymap=0;
-    for(int i=0; i<copyOfLaserData.numberOfScans; i++)
-    {
-        double obstacleAngle=(360-copyOfLaserData.Data[i].scanAngle)*(PI/180);
-        double robAngle2PI = robAngle >= 0 ? robAngle : robAngle + 2*PI;
-
-        if (copyOfLaserData.Data[i].scanDistance > 150 && copyOfLaserData.Data[i].scanDistance < 3000){//mm
-            Xmap=(((robX)*1000 + copyOfLaserData.Data[i].scanDistance * cos(robAngle2PI+obstacleAngle))/100);
-            Ymap=(((robY)*1000 + copyOfLaserData.Data[i].scanDistance * sin(robAngle2PI+obstacleAngle))/100);
-
-            map.array[(int)Xmap+map.midX][(int)Ymap+map.midY]=1;
-        }
-    }
-    return 1.0;
-
-
-}
 
 double MainWindow::euclideanDistance(double x1, double y1, double x2, double y2){
    return (double)sqrt(pow(x2-x1,2)+pow(y2-y1,2));
@@ -340,7 +495,6 @@ void MainWindow::positionning(){
 
     double angleDiff = 0;
     angleDiff = targetPosition.fi-actualPosition.fi;
-    //printf("Rozdiel: %f, target fi %f, actual fi %f\n", angleDiff,targetPosition.fi,actualPosition.fi);
     if(angleDiff < -PI){
         angleDiff += 2*PI;
     }else if (angleDiff>PI){
@@ -348,15 +502,12 @@ void MainWindow::positionning(){
     }
     angleErr = angleDiff;
     distErr = targetPosition.dist;
-    //printf("Scaled Rozdiel: %f \n", angleDiff);
     if (positioningState.start)
     {
+        printf("Start\n");
         if (abs(angleDiff) > PI/4 ) {
             positioningState.rotation =1;
             positioningState.circularMovement=0;
-            //printf("abs target(%f) - actual(%f) = %f\n", targetPosition.fi, fiAbs, abs(targetPosition.fi-actualPosition.fi));
-            //printf("\n x target = %f\n", targetPosition.x);
-           // printf("Diff angle = %f",angleDiff);
         }
         else{
             positioningState.rotation=0;
@@ -364,7 +515,6 @@ void MainWindow::positionning(){
         }
 
         if (targetPosition.dist<0.1) {
-            printf("Skoncil som\n");
             positioningState.start=0;
             robotStop();
             positioningState.acceleration=1;
@@ -413,7 +563,9 @@ void MainWindow::positionning(){
      }
 
 }
-
+//****************************************************************
+//********************** Robot Localisation **********************
+//****************************************************************
 void MainWindow::localisation(){
 
     double newEncLeft = robotdata.EncoderLeft;
@@ -450,7 +602,6 @@ void MainWindow::localisation(){
             newFi -= 2*PI;
         }
 
-
     actualPosition.fi = newFi;
     if(lRight == lLeft){
         actualPosition.x = actualPosition.x + lRight*cos(actualFi);
@@ -459,19 +610,16 @@ void MainWindow::localisation(){
         actualPosition.x = actualPosition.x + ((diameter*(lRight + lLeft)/(2.0*(lRight-lLeft)))*(sin(newFi)-sin(actualFi)));
         actualPosition.y = actualPosition.y - ((diameter*(lRight + lLeft)/(2.0*(lRight-lLeft)))*(cos(newFi)-cos(actualFi)));
     }
-
     actualFi = newFi;
-
 }
 
-
-
+//***********************************************************
+//********************** Robot process **********************
+//***********************************************************
 void MainWindow::robotprocess()
 {
     WSADATA wsaData = {0};
     int iResult = 0;
-
-
 
     // Initialize Winsock
     iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -480,7 +628,6 @@ void MainWindow::robotprocess()
     {
 
     }
-
     char rob_broadcastene=1;
     setsockopt(rob_s,SOL_SOCKET,SO_BROADCAST,&rob_broadcastene,sizeof(rob_broadcastene));
     // zero out the structure
@@ -516,11 +663,6 @@ void MainWindow::robotprocess()
 
             continue;
         }
-        //tu mame data..zavolame si funkciu
-
-        //     memcpy(&sens,buff,sizeof(sens));
-        //struct timespec t;
-        //      clock_gettime(CLOCK_REALTIME,&t);
 
         actualEncLeft = robotdata.EncoderLeft;
         actualEncRight = robotdata.EncoderRight;
@@ -548,8 +690,7 @@ void MainWindow::robotprocess()
     }
 }
 
-
-
+//********************** Slots **********************
 
 void MainWindow::on_pushButton_clicked()
 {
@@ -567,10 +708,7 @@ void MainWindow::on_pushButton_clicked()
     }
 }
 
-void MainWindow::getNewFrame()
-{
 
-}
 
 void MainWindow::on_pushButton_11_clicked()
 {
@@ -579,7 +717,6 @@ void MainWindow::on_pushButton_11_clicked()
 
     positioningState.start = 1; // Zacni polohovat
 }
-
 
 void MainWindow::on_pushButton_10_clicked()
 {
@@ -591,7 +728,6 @@ void MainWindow::on_pushButton_8_clicked()
 {
 
 }
-
 
 void MainWindow::on_pushButton_12_clicked()
 {
@@ -609,3 +745,11 @@ void MainWindow::on_pushButton_12_clicked()
     }
 }
 
+void MainWindow::on_pushButton_13_clicked()
+{
+    readMapToArr("D:\\gitHub\\RMR\\RMR_Uloha_01\\robotmap.csv");
+}
+void MainWindow::getNewFrame()
+{
+
+}

@@ -48,6 +48,32 @@ typedef struct{
 }robotMap;
 
 typedef struct{
+    int width = 40;
+    int heigh = 40;
+    int midX = width/2;
+    int midY = heigh/2;
+   int array[40][40];
+}robotResizedMap;
+
+typedef struct{
+    int x;
+    int y;
+    int value;
+}point;
+
+typedef struct{
+   std::vector<std::vector<point>>  map;\
+
+
+}floodMap;
+
+typedef struct{
+    int x;
+    int y;
+    int value;
+}MapBlock;
+
+typedef struct{
     bool start = 0;
     bool circularMovement = 0;
     bool rotation = 0;
@@ -71,6 +97,8 @@ public:
     void robotprocess();
     void laserprocess();
     void processThisLidar(LaserMeasurement &laserData);
+    point worldCoord2map(double xm, double ym);
+    void mapNavigation();
 
     void processThisRobot();
     HANDLE robotthreadHandle; // handle na vlakno
@@ -109,7 +137,11 @@ public:
     void robotRotate(double angl);
     void robotStop();
     void robotArcMove(double translation,double radius);
+    std::vector<point> findNeighbour(point position, int neighbourX[8], int neighbourY[8], robotResizedMap *map, int foundStart[1]);
     void positionning();
+    bool mapFloodFill(robotResizedMap map, point start, point goal);
+    robotResizedMap resizeMapFill(robotMap map);
+    robotMap readMapToArr(string path);
     bool init = true;
 
 private:
@@ -152,6 +184,8 @@ private slots:
     void on_pushButton_8_clicked();
 
     void on_pushButton_12_clicked();
+
+    void on_pushButton_13_clicked();
 
 private:
      JOYINFO joystickInfo;
