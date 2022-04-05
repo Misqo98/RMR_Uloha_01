@@ -16,6 +16,8 @@ MainWindow::MainWindow(QWidget *parent) :
     //cap.open("http://192.168.1.11:8000/stream.mjpg");
     ui->setupUi(this);
     datacounter=0;
+    globalGoal.x = 0;
+    globalGoal.y = 0;
   //  timer = new QTimer(this);
  //   connect(timer, SIGNAL(timeout()), this, SLOT(getNewFrame()));
     actIndex=-1;
@@ -72,8 +74,14 @@ void MainWindow::processThisRobot()
       if(isMaping && !positioningState.rotation && !isRottating){
       mapping(actualPosition.x, actualPosition.y, actualPosition.fi);
       }
-      positionning();
-      mapNavigation();
+
+      /*if(targetPointPath.empty()){
+        mapNavigation();
+      }else{
+          //positioningState.start = 1;
+          //moveToCoors(&targetPointPath);
+      }*/
+        positionning();
 
     if(datacounter%5)
     {
@@ -212,46 +220,67 @@ void MainWindow::laserprocess()
 //****************************************************************
 //********************** Map coordination ***********************
 //***************************************************************
-point MainWindow::worldCoord2map(double xm, double ym){
-    point result;
+PointIdx MainWindow::coordToMapIdx(PointCoor pointRobot){
+    PointIdx result;
     int ofset = 40/2;
 
-    result.x = (int)(xm*1000.0/300.0);
-    result.y = (int)(ym*1000.0/300.0);
+    result.x = (int)(pointRobot.x*1000.0/300.0);
+    result.y = (int)(pointRobot.y*1000.0/300.0);
 
     result.x += ofset;
     result.y += ofset;
     return result;
 }
 
-/*worldPoint MainWindow::mapCoord2World( int xm, int ym){
-    int ofset = ofset = 30/2;;
-    worldPoint tmpPoint;
-    tmpPoint.x = ((double)(xm-ofset))*250.0/1000.0;
-    tmpPoint.y = ((double)(ym-ofset))*250.0/1000.0;
- //227 237
-    //cout << xn << "     " << yn << endl;
-    return tmpPoint;
-}*/
+PointCoor MainWindow::mapIdxToCoords(PointIdx pointMap){
+    int ofset = ofset = 40/2;
+    PointCoor result;
+    result.x = ((double)(pointMap.x-ofset))*300.0/1000.0 + 0.15;
+    result.y = ((double)(pointMap.y-ofset))*300.0/1000.0 + 0.15;
+    result.value = pointMap.value;
+    return result;
+
+}
+vector<PointCoor> MainWindow::mapIdxToCoordsList(vector<PointIdx> pointsMap){
+    vector<PointCoor> result;
+    for(int i = 0; i<pointsMap.size();i++){
+        PointIdx idx = pointsMap[i];
+        PointCoor coor = mapIdxToCoords(idx);
+        result.push_back(coor);
+    }
+    return result;
+}
+
 //****************************************************************
 //********************** Map navigation **************************
 //****************************************************************
 void MainWindow::mapNavigation(){
     robotMap map = readMapToArr("D:\\gitHub\\RMR\\RMR_Uloha_01\\robotmap.csv");
     robotResizedMap resizedMap = resizeMapFill(map);
+    vector<PointIdx> navigatePath;
+    vector<PointCoor> navigatePathCoord;
+    PointCoor goal = globalGoal;
+    PointCoor start;
+    start.x = actualPosition.x;
+    start.y = actualPosition.y;
 
-    point goal;
-    goal.x = 0;
-    goal.y = 1;
-    printf("Flood %d\n",mapFloodFill(resizedMap, worldCoord2map(actualPosition.x, actualPosition.y), worldCoord2map(goal.x, goal.y)));
+    PointIdx startIdx = coordToMapIdx(start);
+    PointIdx goalIdx = coordToMapIdx(goal);
+   if(mapFloodFill(&resizedMap, startIdx, goalIdx)){
+        startIdx.value = resizedMap.array[startIdx.x][startIdx.y];
+        goalIdx.value = resizedMap.array[goalIdx.x][goalIdx.y];
+        navigatePath = findPath(resizedMap, startIdx, goalIdx);
+   }
 
+      navigatePathCoord = mapIdxToCoordsList(navigatePath);
+      targetPointPath = navigatePathCoord;
 }
 
-std::vector<point> MainWindow::findNeighbour(point position, int neighbourX[8], int neighbourY[8], robotResizedMap *map, int foundStart[1]){
-    std::vector<point> result;
-    for(int i = 0; i < 8; i++){
-        int x = position.x + neighbourX[i];
-        int y = position.y + neighbourY[i];
+std::vector<PointIdx> MainWindow::findNeighbour(PointIdx position, Direction neighbours, robotResizedMap *map, int foundStart[1]){
+    std::vector<PointIdx> result;
+    for(int i = 0; i < neighbours.lenght; i++){
+        int x = position.x + neighbours.x[i];
+        int y = position.y + neighbours.y[i];
         if(x >= 0 && x < 40 && y>=0 && y < 40){
             int value = map->array[x][y];
             if(value == INT_MAX){
@@ -263,7 +292,7 @@ std::vector<point> MainWindow::findNeighbour(point position, int neighbourX[8], 
             }
             if(value == 0){
                 map->array[x][y] =position.value + 1;
-                point newPoint;
+                PointIdx newPoint;
                 newPoint.x = x;
                 newPoint.y = y;
                 newPoint.value = position.value +1;
@@ -274,18 +303,17 @@ std::vector<point> MainWindow::findNeighbour(point position, int neighbourX[8], 
 
     return result;
 }
-bool MainWindow::mapFloodFill(robotResizedMap map, point start, point goal){
-    int smerX[8] = {-1,-1,-1,0,0,1,1,1};
-    int smerY[8] = {1,0,-1,1,-1,1,0,-1};
+bool MainWindow::mapFloodFill(robotResizedMap *map, PointIdx start, PointIdx goal){
+    Direction neighbours;
     int startFound = 0;
         bool result = false;
-    if(map.array[start.x][start.y] != 1 && map.array[goal.x][goal.y] != 1 ){
+    if(map->array[start.x][start.y] != 1 && map->array[goal.x][goal.y] != 1 ){
         start.value = INT_MAX;
         goal.value = 2;
-        map.array[start.x][start.y] = start.value;
-         map.array[goal.x][goal.y] = goal.value;
-        std::vector<point> actualPoint;
-        std::vector<point> nextPoint;
+        map->array[start.x][start.y] = start.value;
+         map->array[goal.x][goal.y] = goal.value;
+        std::vector<PointIdx> actualPoint;
+        std::vector<PointIdx> nextPoint;
         nextPoint.push_back(goal);
 
         while(!nextPoint.empty()){
@@ -293,31 +321,77 @@ bool MainWindow::mapFloodFill(robotResizedMap map, point start, point goal){
             actualPoint.insert(actualPoint.end(), nextPoint.begin(), nextPoint.end());
             nextPoint.clear();
             while(!actualPoint.empty()){
-               point act =  actualPoint[0];
-               std::vector<point> actualNeighbours = findNeighbour(act, smerX, smerY, &map, &startFound);
+               PointIdx act =  actualPoint[0];
+               std::vector<PointIdx> actualNeighbours = findNeighbour(act, neighbours, map, &startFound);
                if(startFound == 1){
                    nextPoint.clear();
                    actualPoint.clear();
                    result = true;
                    break;
                }
-               if(actualNeighbours.empty()){
-                   int a = 0;
-               }
+
                nextPoint.insert(nextPoint.end(), actualNeighbours.begin(), actualNeighbours.end());
                actualPoint.erase(actualPoint.begin());
 
             }
         }
-        for (int y = 0; y < 40; y++) {
+        for (int y = 39; y > 0; y--) {
             for (int x = 0; x < 40; x++)
-                    cout << map.array[x][y] << " ";
+                printf("%02d ",map->array[x][y]);
             cout << "\n";
         }
     }
 
     return result;
 }
+
+vector<PointIdx> MainWindow::findPath(robotResizedMap map, PointIdx start, PointIdx goal){
+
+    DirectionPath selectPath;
+    bool init = false;
+    int newMinDirection = 0;
+    int minPointValue,minPointDirection;
+    vector<PointIdx> neighbourPoints;
+    vector<PointIdx> pathPoints;
+    PointIdx actualPosition = start;
+    PointIdx newPosition;
+    PointIdx pathPosition;
+    //pathPoints.push_back(start);
+
+    minPointValue = INT_MAX;
+    while(actualPosition.value != goal.value){
+        for(int i=0;i<selectPath.lenght;i++){
+            newPosition.x = actualPosition.x + selectPath.x[i];
+            newPosition.y = actualPosition.y + selectPath.y[i];
+            newPosition.value = map.array[newPosition.x][newPosition.y];
+           if(newPosition.value > 1 && newPosition.value < minPointValue){
+               if(!neighbourPoints.empty()){
+                   neighbourPoints.erase(neighbourPoints.begin());
+                }
+               neighbourPoints.push_back(newPosition);
+               minPointValue = neighbourPoints.begin()->value;
+               minPointDirection = i;
+           }
+       }
+       pathPosition = actualPosition;
+       actualPosition = neighbourPoints.front();
+       if(newMinDirection != minPointDirection && init){
+           pathPoints.push_back(pathPosition);
+           newMinDirection = minPointDirection;
+
+       }
+       init = true;
+       if(actualPosition.value == goal.value)
+           pathPoints.push_back(actualPosition);
+    }
+    for (std::size_t y = 0; y < pathPoints.size(); y++) {
+        printf("%d : x=%d, y=%d ", (int)y, pathPoints[y].x, pathPoints[y].y);
+    }
+    printf("\n");
+   return pathPoints;
+}
+
+
 //*************************************************************************
 //********************** Map read, write, and resize **********************
 //*************************************************************************
@@ -422,17 +496,17 @@ robotResizedMap MainWindow::resizeMapFill(robotMap map){
 //*****************************************************
 double MainWindow::mapping(double robX , double robY , double robAngle)
 {
-    int Xmap=0,Ymap=0;
+    int mapX=0,mapY=0;
     for(int i=0; i<copyOfLaserData.numberOfScans; i++)
     {
         double obstacleAngle=(360-copyOfLaserData.Data[i].scanAngle)*(PI/180);
         double robAngle2PI = robAngle >= 0 ? robAngle : robAngle + 2*PI;
 
         if (copyOfLaserData.Data[i].scanDistance > 150 && copyOfLaserData.Data[i].scanDistance < 3000){//mm
-            Xmap=(((robX)*1000 + copyOfLaserData.Data[i].scanDistance * cos(robAngle2PI+obstacleAngle))/100);
-            Ymap=(((robY)*1000 + copyOfLaserData.Data[i].scanDistance * sin(robAngle2PI+obstacleAngle))/100);
+            mapX=(((robX)*1000 + copyOfLaserData.Data[i].scanDistance * cos(robAngle2PI+obstacleAngle))/100);
+            mapY=(((robY)*1000 + copyOfLaserData.Data[i].scanDistance * sin(robAngle2PI+obstacleAngle))/100);
 
-            map.array[(int)Xmap+map.midX][(int)Ymap+map.midY]=1;
+            map.array[(int)mapX+map.midX][(int)mapY+map.midY]=1;
         }
     }
     return 1.0;
@@ -489,7 +563,32 @@ double MainWindow::degToRad(double degree){
    return degree * PI/180;
 }
 
+bool MainWindow::moveToCoor(PointCoor point){
+
+    if(positioningState.start == 0){
+        targetPosition.x = point.x;
+        targetPosition.y = point.y;
+        positioningState.start = 1;
+    }
+    double dist = euclideanDistance(actualPosition.x, actualPosition.y, targetPosition.x, targetPosition.y);
+    return dist < 0.1;
+}
+
+bool MainWindow::moveToCoors(vector<PointCoor> *points){
+    if(!points->empty()){
+        bool respond  = moveToCoor((*points)[0]);
+        if(respond){
+            points->erase(points->begin());
+        }
+    }
+    return points->empty();
+}
+
 void MainWindow::positionning(){
+    if(!targetPointPath.empty()){
+        targetPosition.x = targetPointPath[0].x;
+        targetPosition.y = targetPointPath[0].y;
+    }
     targetPosition.fi = directionAngle(actualPosition.x, actualPosition.y, targetPosition.x, targetPosition.y);
     targetPosition.dist = euclideanDistance(actualPosition.x, actualPosition.y, targetPosition.x, targetPosition.y);
 
@@ -514,11 +613,15 @@ void MainWindow::positionning(){
             positioningState.circularMovement=1;
         }
 
-        if (targetPosition.dist<0.1) {
-            positioningState.start=0;
+        if (targetPosition.dist < 0.1) {
+            targetPointPath.erase(targetPointPath.begin());
+            //positioningState.start=0;
+            positioningState.start = targetPointPath.empty() ? 0 : 1;
             robotStop();
             positioningState.acceleration=1;
-            ramp=0; }
+            ramp=0;
+
+        }
     }
 
     if(positioningState.start && positioningState.rotation)
@@ -561,7 +664,6 @@ void MainWindow::positionning(){
              ramp=ramp+0.01;
 
      }
-
 }
 //****************************************************************
 //********************** Robot Localisation **********************
@@ -712,9 +814,9 @@ void MainWindow::on_pushButton_clicked()
 
 void MainWindow::on_pushButton_11_clicked()
 {
-    targetPosition.x = (ui->lineEdit_5->text().toDouble());
-    targetPosition.y = (ui->lineEdit_6->text().toDouble());
-
+    globalGoal.x = (ui->lineEdit_5->text().toDouble());
+    globalGoal.y = (ui->lineEdit_6->text().toDouble());
+    mapNavigation();
     positioningState.start = 1; // Zacni polohovat
 }
 

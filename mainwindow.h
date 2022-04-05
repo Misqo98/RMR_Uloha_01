@@ -31,6 +31,11 @@
 namespace Ui {
 class MainWindow;
 }
+enum PositioningResult{
+    none,
+    positioning,
+    done
+};
 
 typedef struct{
     double x =0.0;
@@ -56,13 +61,31 @@ typedef struct{
 }robotResizedMap;
 
 typedef struct{
+    int lenght = 4;
+    int x[4]={-1,0,0,1};
+    int y[4]={0,1,-1,0};
+}Direction;
+
+typedef struct{
+    int lenght = 4;
+    int x[4]={-1,0,0,1};
+    int y[4]={0,1,-1,0};
+}DirectionPath;
+
+typedef struct{
     int x;
     int y;
     int value;
-}point;
+}PointIdx;
 
 typedef struct{
-   std::vector<std::vector<point>>  map;\
+    double x;
+    double y;
+    int value;
+}PointCoor;
+
+typedef struct{
+   std::vector<std::vector<PointIdx>>  map;\
 
 
 }floodMap;
@@ -97,9 +120,10 @@ public:
     void robotprocess();
     void laserprocess();
     void processThisLidar(LaserMeasurement &laserData);
-    point worldCoord2map(double xm, double ym);
+    PointIdx coordToMapIdx(PointCoor pointRobot);
     void mapNavigation();
-
+    PointCoor mapIdxToCoords(PointIdx pointMap);
+    vector<PointCoor> mapIdxToCoordsList(vector<PointIdx> pointsMap);
     void processThisRobot();
     HANDLE robotthreadHandle; // handle na vlakno
     DWORD robotthreadID;  // id vlakna
@@ -137,9 +161,10 @@ public:
     void robotRotate(double angl);
     void robotStop();
     void robotArcMove(double translation,double radius);
-    std::vector<point> findNeighbour(point position, int neighbourX[8], int neighbourY[8], robotResizedMap *map, int foundStart[1]);
+    std::vector<PointIdx> findNeighbour(PointIdx position, Direction neighbours, robotResizedMap *map, int foundStart[1]);
+    vector<PointIdx> findPath(robotResizedMap map, PointIdx start, PointIdx goal);
     void positionning();
-    bool mapFloodFill(robotResizedMap map, point start, point goal);
+    bool mapFloodFill(robotResizedMap *map, PointIdx start, PointIdx goal);
     robotResizedMap resizeMapFill(robotMap map);
     robotMap readMapToArr(string path);
     bool init = true;
@@ -154,11 +179,16 @@ private:
     bool isRottating = false;
     double Kp=600,Kr=103;
     double angleErr, distErr = 0.0;
+    vector<PointCoor> targetPointPath;
     robotMap map;
-
+    PositioningResult positioningReslut = none;
     DataSender dataSend;
     Coordinates targetPosition;
     Coordinates actualPosition;
+    PointCoor globalGoal;
+
+    bool moveToCoor(PointCoor point);
+    bool moveToCoors(vector<PointCoor> *points);
 
 
 private slots:
