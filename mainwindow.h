@@ -44,6 +44,8 @@ typedef struct{
     double dist=0.0;
 }Coordinates;
 
+
+
 typedef struct{
     int width = 120;
     int heigh = 120;
@@ -85,16 +87,15 @@ typedef struct{
 }PointCoor;
 
 typedef struct{
+    PointCoor right;
+    PointCoor left;
+}ObstacleEdges;
+
+typedef struct{
    std::vector<std::vector<PointIdx>>  map;\
 
 
 }floodMap;
-
-typedef struct{
-    int x;
-    int y;
-    int value;
-}MapBlock;
 
 typedef struct{
     bool start = 0;
@@ -125,6 +126,10 @@ public:
     PointCoor mapIdxToCoords(PointIdx pointMap);
     vector<PointCoor> mapIdxToCoordsList(vector<PointIdx> pointsMap);
     void processThisRobot();
+    ObstacleEdges findEdges(double robX , double robY, double robAngle);
+    void avoidObstacles(PointCoor target, PointCoor actual);
+    PointCoor getBestEdge(ObstacleEdges obstacle, PointCoor target, PointCoor actual);
+
     HANDLE robotthreadHandle; // handle na vlakno
     DWORD robotthreadID;  // id vlakna
     static DWORD WINAPI robotUDPVlakno(void *param)
@@ -229,9 +234,6 @@ private:
      int datacounter;
      QTimer *timer;
      PositioningState positioningState;
-
-
-
 
 public slots:
      void setUiValues(DataSender dataSend);

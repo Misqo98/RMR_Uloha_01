@@ -83,6 +83,7 @@ void MainWindow::processThisRobot()
       }*/
         positionning();
 
+
     if(datacounter%5)
     {
         dataSend.x = actualPosition.x;
@@ -239,7 +240,6 @@ PointCoor MainWindow::mapIdxToCoords(PointIdx pointMap){
     result.y = ((double)(pointMap.y-ofset))*300.0/1000.0 + 0.15;
     result.value = pointMap.value;
     return result;
-
 }
 vector<PointCoor> MainWindow::mapIdxToCoordsList(vector<PointIdx> pointsMap){
     vector<PointCoor> result;
@@ -248,6 +248,69 @@ vector<PointCoor> MainWindow::mapIdxToCoordsList(vector<PointIdx> pointsMap){
         PointCoor coor = mapIdxToCoords(idx);
         result.push_back(coor);
     }
+    return result;
+}
+//****************************************************************
+//********************** bug alg **************************
+//****************************************************************
+ObstacleEdges MainWindow::findEdges(double robX , double robY, double robAngle){
+
+  ObstacleEdges obstacle;
+  obstacle.left.x = 0;
+  obstacle.left.y = 0;
+  obstacle.right.x = 0;
+  obstacle.right.y = 0;
+  for(int i=0; i<copyOfLaserData.numberOfScans-1; i++)
+  {
+      double obstacleAngle=(360-copyOfLaserData.Data[i].scanAngle)*(PI/180);
+      double robAngle2PI = robAngle >= 0 ? robAngle : robAngle + 2*PI;
+
+      if (copyOfLaserData.Data[i].scanDistance > 150){
+        if(obstacleAngle< PI/2){
+            double distDiff = abs(copyOfLaserData.Data[i].scanDistance - copyOfLaserData.Data[i+1].scanDistance);
+            if(distDiff > 1000){
+                obstacle.left.x=(((robX) + copyOfLaserData.Data[i].scanDistance/1000 * cos(robAngle2PI+obstacleAngle)));
+                obstacle.left.y =(((robY) + copyOfLaserData.Data[i].scanDistance/1000 * sin(robAngle2PI+obstacleAngle)));
+                 printf("Left:X= %f, Y=%f\n",obstacle.left.x, obstacle.left.y);
+              }
+        }else if(obstacleAngle < 2*PI && obstacleAngle > 3/2*PI ){
+            double distDiff = abs(copyOfLaserData.Data[i].scanDistance - copyOfLaserData.Data[i+1].scanDistance);
+            if(distDiff > 1000){
+                obstacle.right.x=(((robX) + copyOfLaserData.Data[i+1].scanDistance/1000 * cos(robAngle2PI+obstacleAngle)));
+                obstacle.right.y =(((robY) + copyOfLaserData.Data[i+1].scanDistance/1000 * sin(robAngle2PI+obstacleAngle)));
+                 printf("Right:X= %f, Y=%f\n",obstacle.right.x, obstacle.right.y);
+              }
+        }
+      }
+  }
+    return obstacle;
+}
+
+void MainWindow::avoidObstacles(PointCoor target, PointCoor actual){
+    ObstacleEdges obstacle;
+    PointCoor bestEdge;
+    obstacle = findEdges(actualPosition.x, actualPosition.y, actualPosition.fi);
+    bestEdge = getBestEdge(obstacle, target, actual);
+
+
+}
+
+PointCoor MainWindow::getBestEdge(ObstacleEdges obstacle, PointCoor target, PointCoor actual){
+    PointCoor result;
+    double rightDist = 0;
+    double leftDist = 0;
+    rightDist = euclideanDistance(actual.x, actual.y, obstacle.right.x, obstacle.right.y)+
+            euclideanDistance(obstacle.right.x, obstacle.right.y, target.x, target.y);
+
+    leftDist = euclideanDistance(actual.x, actual.y, obstacle.left.x, obstacle.left.y)+
+            euclideanDistance(obstacle.left.x, obstacle.left.y, target.x, target.y);
+
+    if(rightDist < leftDist){
+        result = obstacle.right;
+    }else{
+        result = obstacle.left;
+    }
+
     return result;
 }
 
@@ -271,7 +334,6 @@ void MainWindow::mapNavigation(){
         goalIdx.value = resizedMap.array[goalIdx.x][goalIdx.y];
         navigatePath = findPath(resizedMap, startIdx, goalIdx);
    }
-
       navigatePathCoord = mapIdxToCoordsList(navigatePath);
       targetPointPath = navigatePathCoord;
 }
@@ -281,7 +343,7 @@ std::vector<PointIdx> MainWindow::findNeighbour(PointIdx position, Direction nei
     for(int i = 0; i < neighbours.lenght; i++){
         int x = position.x + neighbours.x[i];
         int y = position.y + neighbours.y[i];
-        if(x >= 0 && x < 40 && y>=0 && y < 40){
+        if(x >= 0 && x < map->width && y>=0 && y < map->heigh){
             int value = map->array[x][y];
             if(value == INT_MAX){
                 map->array[x][y] =position.value + 1;
@@ -303,15 +365,16 @@ std::vector<PointIdx> MainWindow::findNeighbour(PointIdx position, Direction nei
 
     return result;
 }
+
 bool MainWindow::mapFloodFill(robotResizedMap *map, PointIdx start, PointIdx goal){
     Direction neighbours;
     int startFound = 0;
-        bool result = false;
+    bool result = false;
     if(map->array[start.x][start.y] != 1 && map->array[goal.x][goal.y] != 1 ){
         start.value = INT_MAX;
         goal.value = 2;
         map->array[start.x][start.y] = start.value;
-         map->array[goal.x][goal.y] = goal.value;
+        map->array[goal.x][goal.y] = goal.value;
         std::vector<PointIdx> actualPoint;
         std::vector<PointIdx> nextPoint;
         nextPoint.push_back(goal);
@@ -321,25 +384,24 @@ bool MainWindow::mapFloodFill(robotResizedMap *map, PointIdx start, PointIdx goa
             actualPoint.insert(actualPoint.end(), nextPoint.begin(), nextPoint.end());
             nextPoint.clear();
             while(!actualPoint.empty()){
-               PointIdx act =  actualPoint[0];
-               std::vector<PointIdx> actualNeighbours = findNeighbour(act, neighbours, map, &startFound);
-               if(startFound == 1){
-                   nextPoint.clear();
-                   actualPoint.clear();
-                   result = true;
-                   break;
-               }
+                PointIdx act =  actualPoint[0];
+                std::vector<PointIdx> actualNeighbours = findNeighbour(act, neighbours, map, &startFound);
+                if(startFound == 1){
+                    nextPoint.clear();
+                    actualPoint.clear();
+                    result = true;
+                    break;
+                }
 
-               nextPoint.insert(nextPoint.end(), actualNeighbours.begin(), actualNeighbours.end());
-               actualPoint.erase(actualPoint.begin());
-
+                nextPoint.insert(nextPoint.end(), actualNeighbours.begin(), actualNeighbours.end());
+                actualPoint.erase(actualPoint.begin());
             }
         }
-        for (int y = 39; y > 0; y--) {
-            for (int x = 0; x < 40; x++)
-                printf("%02d ",map->array[x][y]);
-            cout << "\n";
-        }
+            for (int y = 39; y > 0; y--) {
+                for (int x = 0; x < 40; x++)
+                    printf("%02d ",map->array[x][y]);
+                cout << "\n";
+            }
     }
 
     return result;
@@ -356,7 +418,6 @@ vector<PointIdx> MainWindow::findPath(robotResizedMap map, PointIdx start, Point
     PointIdx actualPosition = start;
     PointIdx newPosition;
     PointIdx pathPosition;
-    //pathPoints.push_back(start);
 
     minPointValue = INT_MAX;
     while(actualPosition.value != goal.value){
@@ -373,12 +434,13 @@ vector<PointIdx> MainWindow::findPath(robotResizedMap map, PointIdx start, Point
                minPointDirection = i;
            }
        }
+
        pathPosition = actualPosition;
        actualPosition = neighbourPoints.front();
+
        if(newMinDirection != minPointDirection && init){
            pathPoints.push_back(pathPosition);
            newMinDirection = minPointDirection;
-
        }
        init = true;
        if(actualPosition.value == goal.value)
@@ -511,7 +573,6 @@ double MainWindow::mapping(double robX , double robY , double robAngle)
     }
     return 1.0;
 
-
 }
 
 //***************************************************************
@@ -588,6 +649,7 @@ void MainWindow::positionning(){
     if(!targetPointPath.empty()){
         targetPosition.x = targetPointPath[0].x;
         targetPosition.y = targetPointPath[0].y;
+        //positioningState.start =1;
     }
     targetPosition.fi = directionAngle(actualPosition.x, actualPosition.y, targetPosition.x, targetPosition.y);
     targetPosition.dist = euclideanDistance(actualPosition.x, actualPosition.y, targetPosition.x, targetPosition.y);
@@ -615,8 +677,8 @@ void MainWindow::positionning(){
 
         if (targetPosition.dist < 0.1) {
             targetPointPath.erase(targetPointPath.begin());
-            //positioningState.start=0;
             positioningState.start = targetPointPath.empty() ? 0 : 1;
+            //positioningState.start = 0;
             robotStop();
             positioningState.acceleration=1;
             ramp=0;
