@@ -125,10 +125,12 @@ public:
     void mapNavigation();
     PointCoor mapIdxToCoords(PointIdx pointMap);
     vector<PointCoor> mapIdxToCoordsList(vector<PointIdx> pointsMap);
+    PointCoor findSafePoints(PointCoor obstacleEdge, Coordinates robotPosition, double safeDistance, bool left, double safeAngle);
+    bool obstacleNearby(Coordinates robotPosition, double sideSaveDistance, double frontSaveDistance);
     void processThisRobot();
     ObstacleEdges findEdges(double robX , double robY, double robAngle);
-    void avoidObstacles(PointCoor target, PointCoor actual);
-    PointCoor getBestEdge(ObstacleEdges obstacle, PointCoor target, PointCoor actual);
+    void avoidObstacles(PointCoor target, Coordinates actual);
+    PointCoor getBestEdge(ObstacleEdges obstacle, PointCoor target, Coordinates actual, bool* left);
 
     HANDLE robotthreadHandle; // handle na vlakno
     DWORD robotthreadID;  // id vlakna
@@ -180,6 +182,7 @@ private:
     double x, y = 0.0;
     double fiAbs = 0.0;
     double ramp = 0.0;
+    bool avoidTask = false;
     bool isMaping = false;
     bool isRottating = false;
     double Kp=600,Kr=103;
@@ -221,6 +224,8 @@ private slots:
     void on_pushButton_12_clicked();
 
     void on_pushButton_13_clicked();
+
+    void on_pushButton_14_clicked();
 
 private:
      JOYINFO joystickInfo;
