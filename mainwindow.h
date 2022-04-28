@@ -125,12 +125,13 @@ public:
     void mapNavigation();
     PointCoor mapIdxToCoords(PointIdx pointMap);
     vector<PointCoor> mapIdxToCoordsList(vector<PointIdx> pointsMap);
-    PointCoor findSafePoints(PointCoor obstacleEdge, Coordinates robotPosition, double safeDistance, bool left, double safeAngle);
+    PointCoor findSafePoints(PointCoor obstacleEdge, Coordinates robotPosition, double safeDistance, double safeAngle);
     bool obstacleNearby(Coordinates robotPosition, double sideSaveDistance, double frontSaveDistance);
     void processThisRobot();
     ObstacleEdges findEdges(double robX , double robY, double robAngle);
     void avoidObstacles(PointCoor target, Coordinates actual);
     PointCoor getBestEdge(ObstacleEdges obstacle, PointCoor target, Coordinates actual, bool* left);
+    bool angleInRange(double angleTocheck, double angleRef, double threshold);
 
     HANDLE robotthreadHandle; // handle na vlakno
     DWORD robotthreadID;  // id vlakna

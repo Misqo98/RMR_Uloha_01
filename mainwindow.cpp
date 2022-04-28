@@ -79,19 +79,23 @@ void MainWindow::processThisRobot()
       mapping(actualPosition.x, actualPosition.y, actualPosition.fi);
       }
 
-      /*if(targetPointPath.empty()){
-        mapNavigation();
-      }else{
-          //positioningState.start = 1;
-          //moveToCoors(&targetPointPath);
-      }*/
+
         positionning();
         if(avoidTask){
             avoidObstacles(targetPointPath[0], actualPosition);
-            avoidTask = false;
+
         }
+       /* ObstacleEdges obstacle;
+
+        obstacle = findEdges(actualPosition.x, actualPosition.y, actualPosition.fi);
+        //PointCoor bestEdge = getBestEdge(obstacle, target, actualPosition);
+        PointCoor avoidingPoint;
+        printf("Obstacle right : X %f, Y %f\n", obstacle.left.x, obstacle.left.y);
+        avoidingPoint = findSafePoints(obstacle.left, actualPosition, 0.7, true, PI/3);
+        printf("Avoid point: X %f, Y %f\n", avoidingPoint.x, avoidingPoint.y);
+            */
         //printf("Obstacle: %d\n", obstacleNearby(actualPosition, 300.0, 150.0));
-        cout << "Obstacle: " << obstacleNearby(actualPosition, 200.0, 350.0) << endl;
+       //cout << "Obstacle: " << obstacleNearby(actualPosition, 200.0, 350.0) << endl;
 
 
     if(datacounter%5)
@@ -281,14 +285,14 @@ ObstacleEdges MainWindow::findEdges(double robX , double robY, double robAngle){
             if(distDiff > 1000){
                 obstacle.left.x=(((robX) + copyOfLaserData.Data[i].scanDistance/1000 * cos(robAngle2PI+obstacleAngle)));
                 obstacle.left.y =(((robY) + copyOfLaserData.Data[i].scanDistance/1000 * sin(robAngle2PI+obstacleAngle)));
-                 printf("Left:X= %f, Y=%f\n",obstacle.left.x, obstacle.left.y);
+                 //printf("Left:X= %f, Y=%f\n",obstacle.left.x, obstacle.left.y);
               }
         }else if(obstacleAngle < 2*PI && obstacleAngle > 3/2*PI ){
             double distDiff = abs(copyOfLaserData.Data[i].scanDistance - copyOfLaserData.Data[i+1].scanDistance);
             if(distDiff > 1000){
                 obstacle.right.x=(((robX) + copyOfLaserData.Data[i+1].scanDistance/1000 * cos(robAngle2PI+obstacleAngle)));
                 obstacle.right.y =(((robY) + copyOfLaserData.Data[i+1].scanDistance/1000 * sin(robAngle2PI+obstacleAngle)));
-                 printf("Right:X= %f, Y=%f\n",obstacle.right.x, obstacle.right.y);
+                 //printf("Right:X= %f, Y=%f\n",obstacle.right.x, obstacle.right.y);
               }
         }
       }
@@ -296,7 +300,7 @@ ObstacleEdges MainWindow::findEdges(double robX , double robY, double robAngle){
     return obstacle;
 }
 
-PointCoor MainWindow::findSafePoints(PointCoor obstacleEdge, Coordinates robotPosition, double safeDistance, bool left, double safeAngle){
+PointCoor MainWindow::findSafePoints(PointCoor obstacleEdge, Coordinates robotPosition, double safeDistance, double safeAngle){
     // safeDistance in meter
     // safeAngle in rad
     PointCoor result;
@@ -308,7 +312,7 @@ PointCoor MainWindow::findSafePoints(PointCoor obstacleEdge, Coordinates robotPo
     obstacle.y = obstacleEdge.y;
     obstacle.fi = directionAngle(robotPosition.x, robotPosition.y, obstacle.x, obstacle.y);
     obstacle.dist = euclideanDistance(robotPosition.x, robotPosition.y, obstacle.x, obstacle.y);
-    if(left){
+
         if(obstacle.fi > 0 && obstacle.fi <= PI){
             result.x = obstacle.x + ((safeDistance)*cos(obstacle.fi + safeAngle));
             result.y = obstacle.y + ((safeDistance)*sin(obstacle.fi + safeAngle));
@@ -316,15 +320,6 @@ PointCoor MainWindow::findSafePoints(PointCoor obstacleEdge, Coordinates robotPo
             result.x = obstacle.x + ((safeDistance)*cos(obstacle.fi -safeAngle));
             result.y = obstacle.y + ((safeDistance)*sin(obstacle.fi -safeAngle));
         }
-    }else{
-        if(obstacle.fi > 0 && obstacle.fi <= PI){
-            result.x = obstacle.x + ((safeDistance)*cos(obstacle.fi + safeAngle));
-            result.y = obstacle.y - ((obstacle.dist+safeDistance)*sin(obstacle.fi + safeAngle));
-        }else{
-            result.x = obstacle.x + ((safeDistance)*cos(obstacle.fi -safeAngle));
-            result.y = obstacle.y - ((safeDistance)*sin(obstacle.fi -safeAngle));
-        }
-    }
 
     return result;
 }
@@ -342,7 +337,7 @@ bool MainWindow::obstacleNearby(Coordinates robotPosition, double sideSaveDistan
 
             if(zDistance < frontSaveDistance && zDistance > 0){
                 result = true;
-                cout << "z: " << zDistance << " x: " << xDistance << " angle: " << 360 - copyOfLaserData.Data[i].scanAngle << endl;
+                //cout << "z: " << zDistance << " x: " << xDistance << " angle: " << 360 - copyOfLaserData.Data[i].scanAngle << endl;
                 break;
             }
         }
@@ -350,26 +345,37 @@ bool MainWindow::obstacleNearby(Coordinates robotPosition, double sideSaveDistan
     }
     return result;
 }
+bool MainWindow::angleInRange(double angleTocheck, double angleRef, double threshold){
+    bool result = false;
+    double leftThreshold = angleRef - threshold < -PI ? PI - threshold : angleRef - threshold;
+    double rightThreshold = angleRef + threshold > PI ? -PI + threshold : angleRef + threshold;
+    if(leftThreshold < rightThreshold && angleTocheck >= leftThreshold && angleTocheck <= rightThreshold){
+       result = true;
+    }else if((leftThreshold >= rightThreshold) && (angleTocheck >= leftThreshold || angleTocheck <= rightThreshold)){
+        result = true;
+    }
+    return result;
+}
 void MainWindow::avoidObstacles(PointCoor target, Coordinates actual){
     ObstacleEdges obstacle;
     bool left = false;
     PointCoor bestEdge;
-    if(obstacleNearby(actual, 200.0, 350.0)){
-        positioningState.start = 0;
-        robotStop();
-        obstacle = findEdges(actual.x, actual.y, actual.fi);
-        bestEdge = getBestEdge(obstacle, target, actual, &left);
-        PointCoor avoidingPoint;
-        avoidingPoint = findSafePoints(bestEdge, actual, 0.4, left, PI/4);
-        printf("Obstacle edge: x: %f, y: %f\n", obstacle.left.x, obstacle.left.y);
-        printf("Avoid point: x: %f, y: %f\n", avoidingPoint.x, avoidingPoint.y);
-        targetPointPath.push_back(avoidingPoint);
-        std::reverse(targetPointPath.begin(), targetPointPath.end());
-        positioningState.start = 1;
+    double targetAngle = directionAngle(actual.x, actual.y, target.x, target.y);
+    if(angleInRange(actual.fi, targetAngle, PI/180 * 3)){
+        if(obstacleNearby(actual, 160.0, 450.0)){
+            positioningState.start = 0;
+            robotStop();
+            obstacle = findEdges(actual.x, actual.y, actual.fi);
+            bestEdge = getBestEdge(obstacle, target, actual, &left);
+            PointCoor avoidingPoint;
+            avoidingPoint = findSafePoints(bestEdge, actual, 0.7, PI/3);
+            //printf("Obstacle edge: x: %f, y: %f\n", obstacle.left.x, obstacle.left.y);
+            //printf("Avoid point: x: %f, y: %f\n", avoidingPoint.x, avoidingPoint.y);
+            targetPointPath.push_back(avoidingPoint);
+            std::reverse(targetPointPath.begin(), targetPointPath.end());
+            positioningState.start = 1;
+        }
     }
-
-
-
 
 }
 
@@ -758,6 +764,9 @@ void MainWindow::positionning(){
         if (targetPosition.dist < 0.1) {
             targetPointPath.erase(targetPointPath.begin());
             positioningState.start = targetPointPath.empty() ? 0 : 1;
+            if(targetPointPath.empty() && avoidTask == true){
+                avoidTask = false;
+            }
             //positioningState.start = 0;
             robotStop();
             positioningState.acceleration=1;
