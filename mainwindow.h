@@ -125,8 +125,8 @@ public:
     void mapNavigation();
     PointCoor mapIdxToCoords(PointIdx pointMap);
     vector<PointCoor> mapIdxToCoordsList(vector<PointIdx> pointsMap);
-    PointCoor findSafePoints(PointCoor obstacleEdge, Coordinates robotPosition, double safeDistance, double safeAngle);
-    bool obstacleNearby(Coordinates robotPosition, double sideSaveDistance, double frontSaveDistance);
+    PointCoor findSafePoints(PointCoor obstacleEdge, Coordinates robotPosition, double safeDistance, double safeAngle, bool left);
+    bool obstacleNearby(Coordinates robotPosition, double sideSaveDistance, double frontSaveDistance, PointCoor target);
     void processThisRobot();
     ObstacleEdges findEdges(double robX , double robY, double robAngle);
     void avoidObstacles(PointCoor target, Coordinates actual);
